@@ -1,0 +1,55 @@
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  buildConfiguration: 'Release'
+
+jobs:
+  - job: Build
+    steps:
+      - task: UseDotNet@2
+        inputs:
+          packageType: 'sdk'
+          version: '5.x'
+          installationPath: $(Agent.ToolsDirectory)/dotnet
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'restore'
+          projects: '**/*.csproj'
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'build'
+          projects: '**/*.csproj'
+          arguments: '--configuration $(buildConfiguration)'
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'publish'
+          publishWebProjects: true
+          arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+
+  - job: Test
+    steps:
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: 'test'
+          projects: '**/*.csproj'
+          arguments: '--configuration $(buildConfiguration)'
+
+  - job: DeployToStaging
+    dependsOn: Build
+    steps:
+      - task: AzureWebApp@1
+        inputs:
+          azureSubscription: '<YourAzureSubscription>'
+          appName: '<YourAppName>'
+          package: '$(Build.ArtifactStagingDirectory)/**/*.zip'
+          deploymentMethod: 'auto'
